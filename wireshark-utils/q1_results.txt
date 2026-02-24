@@ -1,0 +1,79 @@
+======================================================================
+CS 3205 Assignment 1 - Question 1 Analysis
+======================================================================
+
+--- Q1(a): Traceroute Analysis ---
+
+IITB Traceroute:
+  Hop 1: 192.168.0.1 - Avg Latency: 3.047 ms
+  Hop 2: 10.22.23.254 - Avg Latency: 3.996 ms
+  Hop 3: 10.25.100.1 - Avg Latency: 4.442 ms
+  Hop 4: 10.25.0.14 - Avg Latency: 4.082 ms
+  Hop 5: 10.119.232.137 - Avg Latency: 4.575 ms
+  Hop 6: 10.163.255.201 - Avg Latency: 37.328 ms
+  Hop 7: 10.255.238.137 - Avg Latency: 41.655 ms
+  Hop 8: 10.255.237.25 - Avg Latency: 43.343 ms
+  Hop 9: 10.1.200.142 - Avg Latency: 41.596 ms
+  Hop 10: 10.1.207.122 - Avg Latency: 41.555 ms
+  Hop 11: 103.21.124.133 - Avg Latency: 46.245 ms
+
+Total visible hops to IITB: 11
+
+----------------------------------------------------------------------
+
+AUST Traceroute:
+  Hop 1: 192.168.0.1 - Avg Latency: 2.984 ms
+  Hop 2: 10.22.23.254 - Avg Latency: 6.703 ms
+  Hop 3: 10.25.100.1 - Avg Latency: 4.720 ms
+  Hop 4: 10.25.0.14 - Avg Latency: 3.397 ms
+  Hop 5: 10.119.232.137 - Avg Latency: 3.468 ms
+  Hop 6: 10.163.255.201 - Avg Latency: 36.257 ms
+  Hop 7: 10.255.232.217 - Avg Latency: 35.923 ms
+  Hop 8: 180.149.48.18 - Avg Latency: 38.331 ms
+  Hop 11: 180.149.48.32 - Avg Latency: 163.947 ms
+  Hop 13: 62.40.98.233 - Avg Latency: 172.175 ms
+  Hop 14: 62.40.125.181 - Avg Latency: 184.025 ms
+  Hop 15: 212.189.220.8 - Avg Latency: 178.513 ms
+  Hop 16: 185.191.181.16 - Avg Latency: 195.779 ms
+  Hop 17: 185.191.181.132 - Avg Latency: 196.860 ms
+  Hop 18: 193.206.132.30 - Avg Latency: 179.505 ms
+  Hop 19: 140.105.46.161 - Avg Latency: 179.901 ms
+
+Total visible hops to AUST: 16
+
+--- Q1(b): Comparison ---
+
+Number of hops to IITB: 11
+Number of hops to AUST: 16
+Difference: 5 hops
+
+--- Q1(c) & Q1(d): Ping Analysis ---
+
+
+
+--- Q1(e): Expected Latency (Speed of Light) ---
+
+Note: Using approximate distances from Chennai, India
+You may need to adjust based on your actual location
+
+IITB (distance ~1000 km):
+  Expected latency: 10.000 ms
+
+AUST (distance ~6000 km):
+  Expected latency: 60.000 ms
+
+--- Q1(f): Sum of Intermediate Hop Latencies ---
+
+IITB - Sum of all hop latencies: 271.863 ms
+
+AUST - Sum of all hop latencies: 1582.488 ms
+
+--- Q1(g): Maximum Hop Latency ---
+
+IITB - Max hop latency: 46.245 ms (Hop 11)
+
+AUST - Max hop latency: 196.860 ms (Hop 17)
+
+======================================================================
+Analysis complete! Review the results above for your report.
+======================================================================

@@ -1,0 +1,10 @@
+Server:		192.168.0.1
+Address:	192.168.0.1#53
+
+Non-authoritative answer:
+iitb.ac.in	nameserver = dns2.iitb.ac.in.
+iitb.ac.in	nameserver = dns1.iitb.ac.in.
+iitb.ac.in	nameserver = dns3.iitb.ac.in.
+
+Authoritative answers can be found from:
+

@@ -1,0 +1,9 @@
+Server:		192.168.0.1
+Address:	192.168.0.1#53
+
+Non-authoritative answer:
+aust.edu.ng	nameserver = bob.ns.cloudflare.com.
+aust.edu.ng	nameserver = mimi.ns.cloudflare.com.
+
+Authoritative answers can be found from:
+

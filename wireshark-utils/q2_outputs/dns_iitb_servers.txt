@@ -1,0 +1,3 @@
+dns3.iitb.ac.in.
+dns2.iitb.ac.in.
+dns1.iitb.ac.in.

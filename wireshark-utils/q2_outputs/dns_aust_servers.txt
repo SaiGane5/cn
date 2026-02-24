@@ -1,0 +1,2 @@
+mimi.ns.cloudflare.com.
+bob.ns.cloudflare.com.
