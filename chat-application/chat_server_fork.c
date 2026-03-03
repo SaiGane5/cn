@@ -43,38 +43,76 @@ void sigchld_handler(int s) {
 }
 
 void child_handle_client(int cfd, int ipc_fd, const char *username) {
-    uint8_t type;
-    char buf[BUFFER_SIZE * 2];
+    /*
+     * Multiplex two directions using select():
+     *   cfd    – messages from the TCP client (upstream → IPC → parent)
+     *   ipc_fd – routed messages from the parent (downstream → TCP client)
+     *
+     * Without this select loop, the child only reads from cfd, so any
+     * broadcast or private message routed back by the parent via the IPC
+     * socket would never be forwarded to the TCP client.
+     */
+    while (1) {
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        FD_SET(cfd,    &rfds);
+        FD_SET(ipc_fd, &rfds);
+        int max_fd = cfd > ipc_fd ? cfd : ipc_fd;
 
-    while (recv_msg(cfd, &type, buf, sizeof(buf)) > 0) {
-        ipc_msg_t imsg = {0};
-        imsg.msg_type = type;
+        if (select(max_fd + 1, &rfds, NULL, NULL, NULL) <= 0) break;
 
-        if (type == MSG_BROADCAST) {
-            broadcast_payload_t *bp = (broadcast_payload_t *)buf;
-            strncpy(imsg.sender, bp->sender, MAX_NAME);
-            strncpy(imsg.text,   bp->text,   BUFFER_SIZE);
+        /* ---- Upstream: client → parent ---------------------------------- */
+        if (FD_ISSET(cfd, &rfds)) {
+            uint8_t type;
+            char buf[BUFFER_SIZE * 2];
+            if (recv_msg(cfd, &type, buf, sizeof(buf)) <= 0) goto done;
+
+            ipc_msg_t imsg = {0};
+            imsg.msg_type = type;
+            if (type == MSG_BROADCAST) {
+                broadcast_payload_t *bp = (broadcast_payload_t *)buf;
+                strncpy(imsg.sender, bp->sender, MAX_NAME);
+                strncpy(imsg.text,   bp->text,   BUFFER_SIZE);
+            } else if (type == MSG_PRIVATE) {
+                private_payload_t *pp = (private_payload_t *)buf;
+                strncpy(imsg.sender,    pp->sender,    MAX_NAME);
+                strncpy(imsg.recipient, pp->recipient, MAX_NAME);
+                strncpy(imsg.text,      pp->text,      BUFFER_SIZE);
+            } else if (type == MSG_LIST_USERS || type == MSG_DISCONNECT) {
+                strncpy(imsg.sender, username, MAX_NAME);
+            }
+            write(ipc_fd, &imsg, sizeof(imsg));
+            if (type == MSG_DISCONNECT) goto done;
         }
-        else if (type == MSG_PRIVATE) {
-            private_payload_t *pp = (private_payload_t *)buf;
-            strncpy(imsg.sender,    pp->sender,    MAX_NAME);
-            strncpy(imsg.recipient, pp->recipient, MAX_NAME);
-            strncpy(imsg.text,      pp->text,      BUFFER_SIZE);
-        }
-        else if (type == MSG_LIST_USERS || type == MSG_DISCONNECT) {
-            strncpy(imsg.sender, username, MAX_NAME);
-        }
 
-        write(ipc_fd, &imsg, sizeof(imsg));
+        /* ---- Downstream: parent → client -------------------------------- */
+        if (FD_ISSET(ipc_fd, &rfds)) {
+            ipc_msg_t imsg;
+            int r = read(ipc_fd, &imsg, sizeof(imsg));
+            if (r <= 0) goto done;
 
-        if (type == MSG_DISCONNECT) break;
+            if (imsg.msg_type == MSG_BROADCAST) {
+                broadcast_payload_t pkt;
+                strncpy(pkt.sender, imsg.sender, MAX_NAME);
+                strncpy(pkt.text,   imsg.text,   BUFFER_SIZE);
+                send_msg(cfd, MSG_BROADCAST, &pkt, sizeof(pkt));
+            } else if (imsg.msg_type == MSG_PRIVATE) {
+                private_payload_t pkt = {0};
+                strncpy(pkt.sender,    imsg.sender,    MAX_NAME);
+                strncpy(pkt.recipient, imsg.recipient, MAX_NAME);
+                strncpy(pkt.text,      imsg.text,      BUFFER_SIZE);
+                send_msg(cfd, MSG_PRIVATE, &pkt, sizeof(pkt));
+            }
+        }
     }
-
+done:
     /* notify parent of disconnect */
-    ipc_msg_t imsg = {0};
-    imsg.msg_type = MSG_DISCONNECT;
-    strncpy(imsg.sender, username, MAX_NAME);
-    write(ipc_fd, &imsg, sizeof(imsg));
+    {
+        ipc_msg_t imsg = {0};
+        imsg.msg_type = MSG_DISCONNECT;
+        strncpy(imsg.sender, username, MAX_NAME);
+        write(ipc_fd, &imsg, sizeof(imsg));
+    }
     close(ipc_fd);
     close(cfd);
 }
@@ -87,17 +125,24 @@ int find_slot(const char *uname) {
 }
 
 void parent_broadcast(const char *sender, const char *text, const char *exclude) {
-    broadcast_payload_t pkt;
-    strncpy(pkt.sender, sender, MAX_NAME);
-    strncpy(pkt.text,   text,   BUFFER_SIZE);
+    /* Write raw ipc_msg_t to each recipient's IPC fd (not a framed TCP message).
+     * The child reads ipc_msg_t structs and converts them to TCP messages for
+     * its client.  Private messages already use this same raw-write pattern, so
+     * keep broadcasts consistent. */
+    ipc_msg_t msg;
+    msg.msg_type = MSG_BROADCAST;
+    strncpy(msg.sender,    sender, MAX_NAME);
+    memset(msg.recipient, 0, MAX_NAME);
+    strncpy(msg.text,      text,   BUFFER_SIZE);
     for (int i = 0; i < MAX_USERS; i++) {
         if (pslots[i].active && strcmp(pslots[i].username, exclude) != 0)
-            send_msg(pslots[i].fd, MSG_BROADCAST, &pkt, sizeof(pkt));
+            write(pslots[i].fd, &msg, sizeof(msg));
     }
 }
 
 int main() {
     start_monitor("metrics_fork.log");
+    signal(SIGPIPE, SIG_IGN);
 
     struct sigaction sa;
     sa.sa_handler = sigchld_handler;

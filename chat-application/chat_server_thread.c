@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -206,6 +207,7 @@ void *handle_client(void *arg) {
 
 int main() {
     start_monitor("metrics_thread.log");
+    signal(SIGPIPE, SIG_IGN);
 
     int srv = socket(AF_INET, SOCK_STREAM, 0);
     int opt = 1;

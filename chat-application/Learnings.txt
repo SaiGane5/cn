@@ -1,0 +1,75 @@
+Learnings and Challenges — CS 3205 Assignment 2
+================================================
+
+1. PROTOCOL FRAMING
+   The first non-trivial lesson was that TCP is a stream protocol, not a
+   message protocol. Raw send/recv calls can split or coalesce data across
+   calls. Implementing a fixed 5-byte header (type + 4-byte big-endian length)
+   with a loop-until-full recv in net_utils.c was essential to get correct
+   message boundaries. Forgetting to handle partial reads caused subtle
+   corruption bugs early on.
+
+2. CONCURRENCY MODELS FEEL DIFFERENT IN PRACTICE
+   Three models were implemented alongside each other:
+   - Fork: Each client gets its own process. Simple to reason about
+     (no shared state by default), but broadcasting requires shared memory
+     and a mutex, which was harder to set up than expected. Zombie processes
+     also need explicit handling with SIGCHLD/waitpid.
+   - Thread: Shared memory makes broadcasting natural, but every access to
+     the global slots[] array must be locked. A single coarse-grained mutex
+     caused noticeable serialisation under moderate load.
+   - Select: The hardest to implement correctly. All client state must be
+     maintained explicitly in arrays indexed by fd. There is no blocking
+     per-client — every read is non-blocking and partial reads must be
+     buffered per-fd. Once working it was the most efficient.
+
+3. MUTEX SCOPE IS CRITICAL
+   In the thread server, holding slots_lock while iterating all slots during
+   a broadcast meant a thread servicing one client could block all other
+   threads. Narrowing the critical section (grab fd list while locked, then
+   release before sending) was a key correctness and performance fix.
+
+4. SIGPIPE MUST BE IGNORED ON THE SERVER
+   When a client disconnects abruptly, writing to its socket raises SIGPIPE
+   which by default kills the server process. Adding signal(SIGPIPE, SIG_IGN)
+   in main() and checking the return value of send() for -1/EPIPE fixed
+   this class of crash entirely.
+
+5. MEASURING ONE-WAY LATENCY WITHOUT CLOCK SYNC
+   Since all processes run on the same machine, both sender and receiver
+   share the system clock. Embedding gettimeofday/clock_gettime milliseconds
+   inside the message text field and parsing on the receiver side was a
+   clean approach that avoided any round-trip distortion.
+
+6. PROCESS/THREAD MEMORY ACCOUNTING
+   The VmRSS metric in the thread server visibly grew with each new client
+   (~160-180 kB per 2 clients) because pthreads allocate stack in the same
+   process. The fork server's VmRSS stayed flat because child RSS is not
+   reflected in the parent. This was initially surprising and required
+   reading the /proc/self/status and /proc/self/smaps documentation to
+   understand PSS vs VmRSS properly.
+
+7. GRACEFUL DISCONNECTION
+   Early versions left dead sockets in the slots[] array when clients
+   crashed. Detecting EOF (recv returning 0) and MSG_DISCONNECT explicitly,
+   then zeroing the slot and broadcasting a "X left the chat" notification,
+   made the server stable across repeated connect/disconnect cycles.
+
+8. SELECT FD_SET REBUILD
+   In the select-based server, FD_SET must be rebuilt before every select()
+   call because select() modifies the sets in-place to report readiness.
+   Forgetting to re-add all active fds each iteration caused clients to
+   stop receiving messages after the first select() call.
+
+9. PERFORMANCE BENCHMARKING OVERHEAD
+   The monitoring thread reads /proc/self/status every 5 seconds. On macOS
+   (where /proc does not exist) the monitor falls back to getrusage(). The
+   cross-platform abstraction in monitor.c required separate code paths and
+   revealed that macOS reports memory in bytes while Linux reports in kB.
+
+10. PYTHON TEST HARNESS
+    Writing the load/stress test clients in Python (inline heredoc) inside
+    the bash scripts was convenient but introduced a new class of bugs: the
+    Python socket recv loop needed the same "loop until N bytes" logic as the
+    C net_utils. Forgetting this caused the Python client to read partial
+    headers and mis-parse message types, producing confusing test failures.

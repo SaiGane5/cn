@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,6 +31,7 @@ void broadcast_all(const char *sender, const char *text, int exclude_fd) {
 
 int main() {
     start_monitor("metrics_select.log");
+    signal(SIGPIPE, SIG_IGN);
 
     int srv = socket(AF_INET, SOCK_STREAM, 0);
     int opt = 1;
